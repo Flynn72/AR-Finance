@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Landmark, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import Button from "../components/ui/Button";
 import { useAuthStore } from "../store/useAuthStore";
 
@@ -30,9 +30,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm rounded-[var(--radius-card)] border border-border-subtle bg-surface-card p-8">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] bg-brand-950 text-white">
-            <Landmark size={20} />
-          </div>
+          <img src="/logo.png" alt="Accounts Receivable" className="h-14 w-14 object-contain" />
           <h1 className="mt-3 text-lg font-semibold text-brand-950">Accounts Receivable</h1>
           <p className="mt-1 text-sm text-brand-700">Masuk untuk mengakses dashboard internal Finance.</p>
         </div>
