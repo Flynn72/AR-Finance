@@ -6,7 +6,6 @@ import {
   Users,
   BarChart3,
   Settings,
-  Landmark,
   CircleHelp,
   Plus,
   LogOut,
@@ -37,9 +36,7 @@ export default function Sidebar() {
   return (
     <aside className="flex h-full w-[268px] shrink-0 flex-col border-r border-border-subtle bg-white">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] bg-brand-950 text-white">
-          <Landmark size={18} />
-        </div>
+        <img src="/logo.png" alt="Accounts Receivable" className="h-9 w-9 shrink-0 object-contain" />
         <div>
           <p className="text-sm font-semibold leading-tight text-brand-950">
             Accounts Receivable
