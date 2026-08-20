@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 import { generateMockData } from "../lib/mockData";
 import { computeInvoice, computeCustomerSummary } from "../lib/calculations";
@@ -128,6 +129,40 @@ async function deleteAllRows() {
   await supabase.from("customers").delete().not("customer_code", "is", null);
 }
 
+/**
+ * Realtime sync — supaya perubahan yang dibuat satu user (mis. Record
+ * Payment) langsung terlihat di layar user lain tanpa perlu refresh manual.
+ * Didengarkan lewat 1 channel untuk 5 tabel; event apa pun (insert/update/
+ * delete) memicu refetch penuh yang di-debounce, bukan patch parsial —
+ * lebih sederhana dan tetap konsisten dengan prinsip "satu sumber data"
+ * (aturan #14 PRD: hindari kompleksitas kalau bisa lebih sederhana).
+ *
+ * Prasyarat: jalankan supabase/enable-realtime.sql di Supabase SQL Editor
+ * supaya tabel-tabel ini diikutkan ke publication realtime.
+ */
+let realtimeChannel: RealtimeChannel | null = null;
+let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function subscribeRealtime(onChange: () => void) {
+  if (realtimeChannel) return;
+
+  const scheduleRefetch = () => {
+    if (refetchTimer) clearTimeout(refetchTimer);
+    refetchTimer = setTimeout(onChange, 500);
+  };
+
+  const tables = ["customers", "invoices", "payments", "collection_activities", "disputes"];
+  let channel = supabase.channel("ar-data-changes");
+  for (const table of tables) {
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table },
+      scheduleRefetch
+    );
+  }
+  realtimeChannel = channel.subscribe();
+}
+
 export const useARStore = create<ARState>((set, get) => ({
   customers: [],
   invoices: [],
@@ -146,6 +181,7 @@ export const useARStore = create<ARState>((set, get) => ({
       // (khusus development) lewat tombol "Reset ke Data Contoh" di Settings.
       const data = await fetchAll();
       set({ ...data, status: "ready" });
+      subscribeRealtime(() => get().refetch());
     } catch (err) {
       set({ status: "error", error: err instanceof Error ? err.message : "Gagal memuat data." });
     }
