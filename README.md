@@ -4,6 +4,39 @@ Sistem internal Finance untuk mengelola Accounts Receivable — invoice, payment
 overdue/aging, collection, customer, credit control, dispute, dan reporting.
 Dibangun sesuai PRD sebagai single source of truth.
 
+## Status: Hardening Produksi — Auth, Realtime, Reliability ✅
+
+Di atas migrasi Supabase + Auth sebelumnya, ditambahkan 6 perbaikan untuk
+kesiapan produksi:
+
+1. **Lupa Password** — halaman `/forgot-password` (kirim link reset) dan `/reset-password` (set password baru), pakai `supabase.auth.resetPasswordForEmail` + `updateUser`
+2. **Cegah terindeks Google** — `<meta name="robots" content="noindex, nofollow">` + `public/robots.txt` — wajar untuk internal tool yang domainnya bisa saja publik (`*.vercel.app`)
+3. **Realtime sync antar user** — perubahan data (Record Payment, Catat Aktivitas, dll) dari satu user otomatis muncul di layar user lain tanpa refresh manual, lewat `supabase.channel().on('postgres_changes', ...)` di `useARStore.ts`. **Wajib jalankan `supabase/enable-realtime.sql` sekali di SQL Editor** — tanpa ini fitur real-time tidak aktif (aplikasi tetap jalan normal, cuma tidak live-update)
+4. **Error Boundary** — `src/components/ErrorBoundary.tsx`, membungkus seluruh `App.tsx`. Error render yang tak tertangani sekarang menampilkan pesan + tombol "Muat Ulang", bukan layar putih kosong
+5. **Code-splitting per halaman** — tiap route (`Dashboard`, `Reports`, dst) di-`React.lazy()`, hanya diunduh saat dibuka. Bundle awal turun dari ~950kB menjadi ~461kB
+6. **Daftar mandiri pakai OTP Email** — tab baru di halaman Login: masukkan email pribadi apa saja → dikirim kode 6 digit → verifikasi → akun otomatis dibuat. Lihat **catatan keamanan** di bawah, ini mengubah model akses sebelumnya
+
+### ⚠️ Catatan keamanan penting: OTP self-signup
+
+Sebelumnya akun **hanya** dibuat admin manual lewat Supabase Dashboard —
+sekarang siapa pun yang tahu URL aplikasi bisa **mendaftar sendiri** pakai
+email pribadi apa saja lewat tab "Kode Email (OTP)" di halaman Login.
+
+Karena Row Level Security saat ini (`supabase/schema.sql`) memberi **akses
+penuh baca/tulis ke semua data Finance untuk siapa pun yang berhasil
+login** (tanpa RBAC, sesuai keputusan awal PRD) — ini berarti **siapa pun
+yang mendaftar sendiri otomatis punya akses penuh ke seluruh data AR**,
+bukan cuma lihat-lihat.
+
+Kalau aplikasi ini akan dipakai dengan data finansial sungguhan, pertimbangkan salah satu:
+- **Nonaktifkan tab OTP** (hapus toggle di `src/pages/Login.tsx`, kembali ke admin-only seperti sebelumnya) — paling aman, paling sederhana
+- **Batasi domain email** — tolak pendaftaran kalau domain email bukan domain perusahaan (mis. hanya `@perusahaan.com`), perlu tambahan validasi
+- **Approval manual** — akun baru dari OTP tetap dibuat tapi non-aktif sampai admin approve
+
+Belum saya batasi otomatis karena itu bukan yang diminta — tapi tolong
+putuskan salah satu sebelum aplikasi ini benar-benar dipakai dengan data
+finansial asli.
+
 ## Status: Migrasi ke Supabase + Auth ✅
 
 Seluruh 7 phase awal sudah selesai (lihat riwayat di bawah). Di atas itu,
@@ -25,16 +58,18 @@ dikerjakan.
 
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis untuk skala tim kecil)
 2. Buka **SQL Editor** di dashboard Supabase, jalankan seluruh isi file `supabase/schema.sql` — ini membuat 5 tabel (customers, invoices, payments, collection_activities, disputes) beserta Row Level Security policy
-3. Buka **Authentication > Users**, klik **Add User** untuk membuat akun tim Finance secara manual (email + password). Tidak ada halaman pendaftaran mandiri di aplikasi — sesuai keputusan "tanpa RBAC/user management" dari PRD awal, akun dikelola langsung lewat Supabase Dashboard
-4. Buka **Project Settings > API**, salin **Project URL** dan **anon public key**
-5. Salin `.env.example` menjadi `.env`, isi dengan kedua nilai tersebut:
+3. Masih di **SQL Editor**, jalankan juga `supabase/enable-realtime.sql` — supaya perubahan data live-update antar user (langkah 3 di atas)
+4. Buka **Authentication > Users**, klik **Add User** untuk membuat akun tim Finance secara manual (email + password) — kalau Anda tetap memakai mode admin-only. Kalau tab OTP self-signup diaktifkan, akun baru juga bisa terbentuk otomatis lewat halaman Login (lihat catatan keamanan di atas)
+5. Buka **Project Settings > API**, salin **Project URL** dan **anon public key**
+6. Salin `.env.example` menjadi `.env`, isi dengan kedua nilai tersebut:
    ```
    VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
-6. Jalankan `npm install && npm run dev` — saat pertama kali dibuka, aplikasi otomatis mengisi data contoh ke database (sama seperti mock data sebelumnya) kalau tabel masih kosong
+7. Jalankan `npm install && npm run dev` — saat pertama kali dibuka, aplikasi otomatis mengisi data contoh ke database (sama seperti mock data sebelumnya) kalau tabel masih kosong
 
 ### Data contoh (opsional, hanya lewat aksi eksplisit)
+
 
 Aplikasi **tidak pernah mengisi data contoh secara otomatis** — baik saat
 `npm run dev` lokal maupun di produksi. Database Supabase yang baru
