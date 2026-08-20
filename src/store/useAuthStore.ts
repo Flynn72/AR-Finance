@@ -61,7 +61,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   sendOtp: async (email) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
     });
     return { error: error?.message ?? null };
   },
