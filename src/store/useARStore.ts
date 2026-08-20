@@ -220,7 +220,7 @@ export const useARStore = create<ARState>((set, get) => ({
   },
 
   upsertDispute: async (dispute) => {
-    const { error } = await supabase.from("disputes").upsert(dispute, { onConflict: "dispute_id" });
+    const { error } = await supabase.from("disputes").upsert(dispute, { onConflict: "dispute_id,user_id" });
     if (error) throw new Error(error.message);
     await get().refetch();
   },
@@ -238,19 +238,19 @@ export const useARStore = create<ARState>((set, get) => ({
     if (data.customers?.length) {
       const { error } = await supabase
         .from("customers")
-        .upsert(data.customers, { onConflict: "customer_code" });
+        .upsert(data.customers, { onConflict: "customer_code,user_id" });
       if (error) throw new Error(error.message);
     }
     if (data.invoices?.length) {
       const { error } = await supabase
         .from("invoices")
-        .upsert(data.invoices, { onConflict: "invoice_number" });
+        .upsert(data.invoices, { onConflict: "invoice_number,user_id" });
       if (error) throw new Error(error.message);
     }
     if (data.activities?.length) {
       const { error } = await supabase
         .from("collection_activities")
-        .upsert(data.activities, { onConflict: "activity_id" });
+        .upsert(data.activities, { onConflict: "activity_id,user_id" });
       if (error) throw new Error(error.message);
     }
     await get().refetch();
