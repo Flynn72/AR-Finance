@@ -28,7 +28,7 @@ export default function Settings() {
   const handleReset = async () => {
     setConfirmOpen(false);
     await resetToMockData();
-    show("Data berhasil direset ke data contoh untuk semua pengguna.", "success");
+    show("Data Anda berhasil direset ke data contoh.", "success");
   };
 
   return (
@@ -106,10 +106,10 @@ export default function Settings() {
               <div className="flex-1">
                 <p className="text-sm font-medium text-brand-950">Data Contoh (Development)</p>
                 <p className="mt-1 text-sm text-brand-700">
-                  Database ini terpusat (Supabase) dan dipakai bersama oleh semua pengguna —
-                  tombol ini hanya tersedia di mode development dan akan mengganti{" "}
-                  <strong>seluruh data untuk semua orang</strong> dengan data contoh. Tidak
-                  muncul di build produksi.
+                  Setiap akun punya datanya masing-masing (privat, tidak dibagi ke user lain).
+                  Tombol ini hanya tersedia di mode development dan akan mengganti{" "}
+                  <strong>data milik akun Anda sendiri</strong> dengan data contoh — tidak
+                  memengaruhi data user lain. Tidak muncul di build produksi.
                 </p>
                 <Button className="mt-3" size="sm" onClick={() => setConfirmOpen(true)}>
                   Reset ke Data Contoh
@@ -123,7 +123,7 @@ export default function Settings() {
       <ConfirmationDialog
         open={confirmOpen}
         title="Reset seluruh data?"
-        description="Semua data invoice, payment, aktivitas, dan dispute yang tersimpan saat ini akan diganti dengan data contoh. Tindakan ini tidak dapat dibatalkan."
+        description="Semua data invoice, payment, aktivitas, dan dispute milik akun Anda saat ini akan diganti dengan data contoh. Tindakan ini tidak dapat dibatalkan."
         confirmLabel="Ya, Reset Data"
         tone="critical"
         onConfirm={handleReset}
