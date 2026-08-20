@@ -4,6 +4,39 @@ Sistem internal Finance untuk mengelola Accounts Receivable — invoice, payment
 overdue/aging, collection, customer, credit control, dispute, dan reporting.
 Dibangun sesuai PRD sebagai single source of truth.
 
+## Status: Model Data Per-User (Multi-Tenant) ✅
+
+Perubahan besar terakhir: sebelumnya semua user yang login berbagi **satu**
+data AR yang sama (satu tim, satu database bersama). Sekarang **setiap
+akun punya datanya sendiri** — user A tidak bisa lihat/ubah data user B
+sama sekali, meski sama-sama pakai aplikasi yang sama.
+
+Ini sekaligus menjawab masalah keamanan dari fitur "Daftar" mandiri yang
+ditambahkan sebelumnya: dulu siapa pun yang daftar otomatis dapat akses
+penuh ke SEMUA data Finance (karena shared). Sekarang siapa pun yang
+daftar cuma dapat ruang kerja kosong miliknya sendiri — jauh lebih aman
+untuk fitur self-signup.
+
+**Yang berubah secara struktur database (`supabase/schema.sql`):**
+- Tiap tabel dapat kolom `user_id` (terisi otomatis dari akun yang sedang login lewat `default auth.uid()` — kode aplikasi tidak perlu mengatur ini manual)
+- Primary Key berubah dari kode tunggal (`customer_code`, `invoice_number`, dst) jadi **gabungan** `(kode, user_id)` — karena kode yang sama (mis. `CUST-1000`) sekarang boleh dipakai banyak user berbeda tanpa bentrok
+- Row Level Security diubah dari "siapa saja yang login boleh akses semua" jadi **"hanya boleh akses baris milik sendiri"** (`auth.uid() = user_id`)
+
+**Kode aplikasi (React) hampir tidak berubah** — hanya `onConflict` di beberapa fungsi upsert (`useARStore.ts`) yang disesuaikan ke Primary Key baru. Semua query select/insert/update/realtime **otomatis** ter-scope per-user oleh Postgres/RLS, tanpa perlu tambahan filter `WHERE user_id = ...` di kode manapun.
+
+### ⚠️ Migrasi database yang sudah ada (WAJIB, sebelum pakai lagi)
+
+Karena Primary Key berubah total, **tidak bisa** diubah bertahap tanpa
+risiko. Kalau project Supabase Anda sudah pernah dipakai (ada data lama,
+sekalipun cuma data contoh/testing):
+
+1. Buka Supabase Dashboard → SQL Editor
+2. Jalankan seluruh isi `supabase/migrate-to-per-user-data.sql` — **ini menghapus SEMUA data yang ada sekarang**, tidak bisa dibatalkan
+3. Jalankan seluruh isi `supabase/schema.sql` (versi terbaru) untuk membuat ulang tabel dengan struktur per-user
+4. Kalau langkah 2-3 tidak dijalankan, aplikasi akan error saat insert/upsert karena struktur tabel lama tidak cocok dengan kode yang baru
+
+Untuk project Supabase yang benar-benar baru (belum pernah dipakai), cukup jalankan `supabase/schema.sql` langsung — tidak perlu file migrate.
+
 ## Status: Hardening Produksi — Auth, Realtime, Reliability ✅
 
 Di atas migrasi Supabase + Auth sebelumnya, ditambahkan 6 perbaikan untuk
@@ -14,28 +47,8 @@ kesiapan produksi:
 3. **Realtime sync antar user** — perubahan data (Record Payment, Catat Aktivitas, dll) dari satu user otomatis muncul di layar user lain tanpa refresh manual, lewat `supabase.channel().on('postgres_changes', ...)` di `useARStore.ts`. **Wajib jalankan `supabase/enable-realtime.sql` sekali di SQL Editor** — tanpa ini fitur real-time tidak aktif (aplikasi tetap jalan normal, cuma tidak live-update)
 4. **Error Boundary** — `src/components/ErrorBoundary.tsx`, membungkus seluruh `App.tsx`. Error render yang tak tertangani sekarang menampilkan pesan + tombol "Muat Ulang", bukan layar putih kosong
 5. **Code-splitting per halaman** — tiap route (`Dashboard`, `Reports`, dst) di-`React.lazy()`, hanya diunduh saat dibuka. Bundle awal turun dari ~950kB menjadi ~461kB
-6. **Daftar mandiri pakai OTP Email** — tab baru di halaman Login: masukkan email pribadi apa saja → dikirim kode 6 digit → verifikasi → akun otomatis dibuat. Lihat **catatan keamanan** di bawah, ini mengubah model akses sebelumnya
 
-### ⚠️ Catatan keamanan penting: OTP self-signup
-
-Sebelumnya akun **hanya** dibuat admin manual lewat Supabase Dashboard —
-sekarang siapa pun yang tahu URL aplikasi bisa **mendaftar sendiri** pakai
-email pribadi apa saja lewat tab "Kode Email (OTP)" di halaman Login.
-
-Karena Row Level Security saat ini (`supabase/schema.sql`) memberi **akses
-penuh baca/tulis ke semua data Finance untuk siapa pun yang berhasil
-login** (tanpa RBAC, sesuai keputusan awal PRD) — ini berarti **siapa pun
-yang mendaftar sendiri otomatis punya akses penuh ke seluruh data AR**,
-bukan cuma lihat-lihat.
-
-Kalau aplikasi ini akan dipakai dengan data finansial sungguhan, pertimbangkan salah satu:
-- **Nonaktifkan tab OTP** (hapus toggle di `src/pages/Login.tsx`, kembali ke admin-only seperti sebelumnya) — paling aman, paling sederhana
-- **Batasi domain email** — tolak pendaftaran kalau domain email bukan domain perusahaan (mis. hanya `@perusahaan.com`), perlu tambahan validasi
-- **Approval manual** — akun baru dari OTP tetap dibuat tapi non-aktif sampai admin approve
-
-Belum saya batasi otomatis karena itu bukan yang diminta — tapi tolong
-putuskan salah satu sebelum aplikasi ini benar-benar dipakai dengan data
-finansial asli.
+**Catatan:** sempat dicoba juga fitur "daftar mandiri pakai OTP Email" (self-signup), tapi dibatalkan — layanan email default Supabase (tanpa SMTP sendiri) kena rate limit sangat ketat (~2-4 email/jam) dan setup SMTP custom (Resend dkk) butuh domain email sendiri yang belum tersedia. Kembali ke model semula: **akun hanya dibuat admin lewat Supabase Dashboard**, tidak ada pendaftaran mandiri — lebih sederhana dan tidak butuh infrastruktur email tambahan.
 
 ## Status: Migrasi ke Supabase + Auth ✅
 
@@ -59,7 +72,7 @@ dikerjakan.
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis untuk skala tim kecil)
 2. Buka **SQL Editor** di dashboard Supabase, jalankan seluruh isi file `supabase/schema.sql` — ini membuat 5 tabel (customers, invoices, payments, collection_activities, disputes) beserta Row Level Security policy
 3. Masih di **SQL Editor**, jalankan juga `supabase/enable-realtime.sql` — supaya perubahan data live-update antar user (langkah 3 di atas)
-4. Buka **Authentication > Users**, klik **Add User** untuk membuat akun tim Finance secara manual (email + password) — kalau Anda tetap memakai mode admin-only. Kalau tab OTP self-signup diaktifkan, akun baru juga bisa terbentuk otomatis lewat halaman Login (lihat catatan keamanan di atas)
+4. Buka **Authentication > Users**, klik **Add User** untuk membuat akun tim Finance secara manual (email + password). Tidak ada halaman pendaftaran mandiri — akun dikelola langsung lewat Supabase Dashboard
 5. Buka **Project Settings > API**, salin **Project URL** dan **anon public key**
 6. Salin `.env.example` menjadi `.env`, isi dengan kedua nilai tersebut:
    ```
