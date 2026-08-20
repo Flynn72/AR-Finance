@@ -147,8 +147,8 @@ export default function Login() {
             {otpStep === "request" ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <p className="text-xs text-brand-700">
-                  Belum punya akun? Masukkan email, kami kirim kode 6 digit — akun baru otomatis
-                  dibuat setelah kode diverifikasi.
+                  Belum punya akun? Masukkan email, kami kirim link masuk — akun baru otomatis
+                  dibuat setelah link diklik.
                 </p>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-brand-700">Email</label>
@@ -170,29 +170,47 @@ export default function Login() {
                 )}
 
                 <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<Mail size={14} />}>
-                  {submitting ? "Mengirim..." : "Kirim Kode OTP"}
+                  {submitting ? "Mengirim..." : "Kirim Link Masuk"}
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <p className="text-xs text-brand-700">
-                  Kode 6 digit sudah dikirim ke <strong>{otpEmail}</strong>. Cek folder spam kalau
-                  belum muncul.
-                </p>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-brand-700">Kode OTP</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    autoFocus
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="123456"
-                    className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-center text-lg tracking-[0.5em] font-data focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
-                  />
+              <div className="space-y-4">
+                <div className="flex flex-col items-center rounded-[var(--radius-control)] bg-info-bg px-4 py-5 text-center">
+                  <Mail size={22} className="text-info-text" />
+                  <p className="mt-2 text-sm font-medium text-brand-950">Cek email Anda</p>
+                  <p className="mt-1 text-xs text-brand-700">
+                    Link masuk sudah dikirim ke <strong>{otpEmail}</strong>. Buka email itu di
+                    perangkat yang sama dengan yang Anda pakai sekarang, lalu klik tombol{" "}
+                    <strong>"Sign in"</strong>. Cek folder spam kalau belum muncul.
+                  </p>
                 </div>
+
+                <details className="rounded-[var(--radius-control)] border border-border-subtle px-3 py-2.5">
+                  <summary className="cursor-pointer text-xs font-medium text-brand-700">
+                    Menerima kode, bukan link?
+                  </summary>
+                  <form onSubmit={handleVerifyOtp} className="mt-3 space-y-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-center text-lg tracking-[0.5em] font-data focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
+                    />
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      className="w-full"
+                      disabled={submitting || otpCode.length !== 6}
+                      icon={<KeyRound size={14} />}
+                    >
+                      {submitting ? "Memverifikasi..." : "Verifikasi Kode"}
+                    </Button>
+                  </form>
+                </details>
 
                 {error && (
                   <p className="rounded-[var(--radius-control)] bg-critical-bg px-3 py-2 text-xs text-critical-text">
@@ -200,17 +218,14 @@ export default function Login() {
                   </p>
                 )}
 
-                <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<KeyRound size={14} />}>
-                  {submitting ? "Memverifikasi..." : "Verifikasi & Masuk"}
-                </Button>
                 <button
                   type="button"
                   onClick={() => setOtpStep("request")}
                   className="w-full text-center text-xs font-medium text-action hover:underline"
                 >
-                  Ganti email / kirim ulang kode
+                  Ganti email / kirim ulang
                 </button>
-              </form>
+              </div>
             )}
           </div>
         )}
