@@ -1,29 +1,74 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { LogIn } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { LogIn, Mail, KeyRound } from "lucide-react";
+import clsx from "clsx";
 import Button from "../components/ui/Button";
 import { useAuthStore } from "../store/useAuthStore";
 
+type Mode = "password" | "otp";
+type OtpStep = "request" | "verify";
+
 export default function Login() {
   const navigate = useNavigate();
-  const signIn = useAuthStore((s) => s.signIn);
+  const { signIn, sendOtp, verifyOtp } = useAuthStore();
 
+  const [mode, setMode] = useState<Mode>("password");
+
+  // Password mode
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // OTP mode
+  const [otpStep, setOtpStep] = useState<OtpStep>("request");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     const { error } = await signIn(email, password);
     setSubmitting(false);
     if (error) {
-      setError("Email atau password salah. Hubungi admin jika Anda belum memiliki akun.");
+      setError("Email atau password salah.");
       return;
     }
     navigate("/dashboard", { replace: true });
+  };
+
+  const handleSendOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const { error } = await sendOtp(otpEmail);
+    setSubmitting(false);
+    if (error) {
+      setError(error);
+      return;
+    }
+    setOtpStep("verify");
+  };
+
+  const handleVerifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const { error } = await verifyOtp(otpEmail, otpCode);
+    setSubmitting(false);
+    if (error) {
+      setError("Kode salah atau sudah kedaluwarsa. Coba kirim ulang.");
+      return;
+    }
+    navigate("/dashboard", { replace: true });
+  };
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError(null);
+    setOtpStep("request");
   };
 
   return (
@@ -35,44 +80,143 @@ export default function Login() {
           <p className="mt-1 text-sm text-brand-700">Masuk untuk mengakses dashboard internal Finance.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-700">Email</label>
-            <input
-              type="email"
-              required
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="nama@perusahaan.com"
-              className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-sm focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-700">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-sm focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
-            />
-          </div>
+        <div className="mt-6 flex gap-1 rounded-[var(--radius-control)] bg-neutral-bg p-1">
+          <button
+            onClick={() => switchMode("password")}
+            className={clsx(
+              "flex-1 rounded-[calc(var(--radius-control)-2px)] py-1.5 text-sm font-medium transition-colors",
+              mode === "password" ? "bg-white text-brand-950 shadow-sm" : "text-brand-700"
+            )}
+          >
+            Password
+          </button>
+          <button
+            onClick={() => switchMode("otp")}
+            className={clsx(
+              "flex-1 rounded-[calc(var(--radius-control)-2px)] py-1.5 text-sm font-medium transition-colors",
+              mode === "otp" ? "bg-white text-brand-950 shadow-sm" : "text-brand-700"
+            )}
+          >
+            Kode Email (OTP)
+          </button>
+        </div>
 
-          {error && (
-            <p className="rounded-[var(--radius-control)] bg-critical-bg px-3 py-2 text-xs text-critical-text">
-              {error}
-            </p>
-          )}
+        {mode === "password" ? (
+          <form onSubmit={handlePasswordSubmit} className="mt-5 space-y-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-700">Email</label>
+              <input
+                type="email"
+                required
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nama@perusahaan.com"
+                className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-sm focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
+              />
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-brand-700">Password</label>
+                <Link to="/forgot-password" className="text-xs font-medium text-action hover:underline">
+                  Lupa password?
+                </Link>
+              </div>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-sm focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
+              />
+            </div>
 
-          <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<LogIn size={14} />}>
-            {submitting ? "Memproses..." : "Masuk"}
-          </Button>
-        </form>
+            {error && (
+              <p className="rounded-[var(--radius-control)] bg-critical-bg px-3 py-2 text-xs text-critical-text">
+                {error}
+              </p>
+            )}
+
+            <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<LogIn size={14} />}>
+              {submitting ? "Memproses..." : "Masuk"}
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-5">
+            {otpStep === "request" ? (
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <p className="text-xs text-brand-700">
+                  Belum punya akun? Masukkan email, kami kirim kode 6 digit — akun baru otomatis
+                  dibuat setelah kode diverifikasi.
+                </p>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-brand-700">Email</label>
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    value={otpEmail}
+                    onChange={(e) => setOtpEmail(e.target.value)}
+                    placeholder="nama@email.com"
+                    className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-sm focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
+                  />
+                </div>
+
+                {error && (
+                  <p className="rounded-[var(--radius-control)] bg-critical-bg px-3 py-2 text-xs text-critical-text">
+                    {error}
+                  </p>
+                )}
+
+                <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<Mail size={14} />}>
+                  {submitting ? "Mengirim..." : "Kirim Kode OTP"}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <p className="text-xs text-brand-700">
+                  Kode 6 digit sudah dikirim ke <strong>{otpEmail}</strong>. Cek folder spam kalau
+                  belum muncul.
+                </p>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-brand-700">Kode OTP</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    autoFocus
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    className="w-full rounded-[var(--radius-control)] border border-border-subtle px-3 py-2 text-center text-lg tracking-[0.5em] font-data focus:border-action focus:outline-none focus:ring-1 focus:ring-action"
+                  />
+                </div>
+
+                {error && (
+                  <p className="rounded-[var(--radius-control)] bg-critical-bg px-3 py-2 text-xs text-critical-text">
+                    {error}
+                  </p>
+                )}
+
+                <Button type="submit" variant="primary" className="w-full" disabled={submitting} icon={<KeyRound size={14} />}>
+                  {submitting ? "Memverifikasi..." : "Verifikasi & Masuk"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setOtpStep("request")}
+                  className="w-full text-center text-xs font-medium text-action hover:underline"
+                >
+                  Ganti email / kirim ulang kode
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         <p className="mt-5 text-center text-xs text-brand-700">
-          Akun dibuat oleh admin lewat Supabase Dashboard — tidak ada pendaftaran mandiri.
+          Punya kendala masuk? Hubungi admin tim Finance.
         </p>
       </div>
     </div>
