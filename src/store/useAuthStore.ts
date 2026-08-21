@@ -7,6 +7,7 @@ interface AuthState {
   status: "loading" | "authenticated" | "unauthenticated";
   init: () => void;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirm: boolean }>;
   signOut: () => Promise<void>;
 
   // Lupa password (akun email+password yang dibuat admin)
@@ -36,6 +37,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   signIn: async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
+  },
+
+  signUp: async (email, password) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message, needsEmailConfirm: false };
+    // Kalau "Confirm email" aktif di Supabase, signUp berhasil tapi belum ada
+    // session (harus klik link konfirmasi dulu). Kalau dimatikan, session
+    // langsung ada — user otomatis login tanpa perlu email sama sekali.
+    return { error: null, needsEmailConfirm: !data.session };
   },
 
   signOut: async () => {
