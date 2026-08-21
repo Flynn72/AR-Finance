@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
+import { useARStore } from "./useARStore";
 
 interface AuthState {
   session: Session | null;
@@ -16,6 +17,21 @@ interface AuthState {
 }
 
 let initialized = false;
+let lastUserId: string | null = null;
+
+/**
+ * Data milik user sebelumnya tidak boleh "nyangkut" di memori browser saat
+ * sesi berganti (login akun lain / logout tanpa reload halaman) — kalau
+ * dibiarkan, RLS di server sudah benar tapi tampilan tetap menampilkan data
+ * lama karena useARStore tidak pernah diminta refetch untuk user baru.
+ */
+function syncArStoreWithSession(session: Session | null) {
+  const currentUserId = session?.user?.id ?? null;
+  if (currentUserId !== lastUserId) {
+    useARStore.getState().reset();
+    lastUserId = currentUserId;
+  }
+}
 
 export const useAuthStore = create<AuthState>((set) => ({
   session: null,
@@ -26,10 +42,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     initialized = true;
 
     supabase.auth.getSession().then(({ data }) => {
+      syncArStoreWithSession(data.session);
       set({ session: data.session, status: data.session ? "authenticated" : "unauthenticated" });
     });
 
     supabase.auth.onAuthStateChange((_event, session) => {
+      syncArStoreWithSession(session);
       set({ session, status: session ? "authenticated" : "unauthenticated" });
     });
   },
