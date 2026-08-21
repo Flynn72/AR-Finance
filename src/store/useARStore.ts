@@ -36,6 +36,10 @@ interface ARState {
 
   init: () => Promise<void>;
   refetch: () => Promise<void>;
+  /** Kosongkan seluruh state + putus koneksi realtime — dipanggil saat sesi
+   * auth berganti user (login akun lain / logout), supaya tidak ada data
+   * milik user sebelumnya yang "nyangkut" di memori browser. */
+  reset: () => void;
 
   recordPayment: (payment: Payment) => Promise<void>;
   logActivity: (activity: CollectionActivity) => Promise<void>;
@@ -163,6 +167,17 @@ function subscribeRealtime(onChange: () => void) {
   realtimeChannel = channel.subscribe();
 }
 
+function unsubscribeRealtime() {
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  if (refetchTimer) {
+    clearTimeout(refetchTimer);
+    refetchTimer = null;
+  }
+}
+
 export const useARStore = create<ARState>((set, get) => ({
   customers: [],
   invoices: [],
@@ -194,6 +209,19 @@ export const useARStore = create<ARState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : "Gagal memuat data." });
     }
+  },
+
+  reset: () => {
+    unsubscribeRealtime();
+    set({
+      customers: [],
+      invoices: [],
+      payments: [],
+      activities: [],
+      disputes: [],
+      status: "idle",
+      error: null,
+    });
   },
 
   recordPayment: async (payment) => {
